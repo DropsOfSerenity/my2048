@@ -31,9 +31,12 @@ nil tile"
 (defn add-random-tile [board]
   "Returns a new board with a tile randomely added to a previously
 empty space"
-  (assoc board (random-nil-index board) (rand-nth [2 4])))
+  (assoc board (random-nil-index board) (rand-nth [2 2 4])))
 
-(defonce app-state (atom {:board (add-random-tile initial-board)}))
+(defonce app-state (atom {:board (add-random-tile (add-random-tile initial-board))}))
+
+(defn reset-app-state! []
+  (reset! app-state {:board (add-random-tile (add-random-tile initial-board))}))
 
 ;; Rendering Logic
 (defn index->css-position
@@ -47,7 +50,18 @@ We should return [1 4]"
         col (+ 1 (mod idx board-size))]
     {:row row :col col}))
 
+(defn tile-position-class-name
+  [idx]
+  (let [{:keys [row col]} (index->css-position idx)]
+    (str "tile "
+         "tile-position-" row "-" col)))
+
 ;; == Dom Components ==
+(q/defcomponent RestartButton []
+  (d/a {:className "restart-button"
+        :onClick (fn [] (reset-app-state!))}
+       "New Game"))
+
 (q/defcomponent Grid []
   "Draws the Grid, nothing here really needs to be dynamic"
   (apply d/div {:className "grid-container"}
@@ -56,17 +70,12 @@ We should return [1 4]"
                   (for [i (range board-size)]
                     (d/div {:className "grid-cell"}))))))
 
-(q/defcomponent Square
-  [idx value]
+(q/defcomponent Square [idx value]
   (d/div {:className "tile-container"}
-         (d/div {:className (str "tile " 
-                                 "tile-position-" 
-                                 (:row (index->css-position idx)) "-"
-                                 (:col (index->css-position idx)))}
+         (d/div {:className (tile-position-class-name idx)}
                 (d/div {:className "tile-inner"} value))))
 
-(q/defcomponent Game
-  [data]
+(q/defcomponent Game [data]
   (println (str "Latest state of game: " (:board data)))
   (d/div {:className "game-container"}
          (Grid)
@@ -81,9 +90,11 @@ We should return [1 4]"
   "Renders the latest state of the game, we wrap this in a function
 so that it can be called by callbacks elsewhere"
   (q/render (Game data)
-            (.getElementById js/document "main-area")))
+            (.getElementById js/document "main-area"))
+  (q/render (RestartButton)
+            (.getElementById js/document "restart-button")))
 
-                                        ; Re-render our game on app-state change
+;; Re-render our game on app-state change
 (add-watch app-state ::render
            (do
              (print "App State Changed")
