@@ -35,48 +35,46 @@ empty space"
 
 (defonce app-state (atom {:board (add-random-tile initial-board)}))
 
+;; Rendering Logic
+(defn index->css-position
+  [idx]
+  "Convert an index to a coord, example:
+Given a 4x4 board.
+Given an index of 3
+We should return [1 4]"
+  (let [idx (inc idx)
+        row (quot idx board-size)
+        col (+ 1 (mod idx board-size))]
+    {:row row :col col}))
+
 ;; == Dom Components ==
-(q/defcomponent Grid
-  []
-  (d/div {:className "grid-container"}
-         (d/div {:className "grid-row"}
-                (d/div {:className "grid-cell"})
-                (d/div {:className "grid-cell"})
-                (d/div {:className "grid-cell"})
-                (d/div {:className "grid-cell"}))
-         (d/div {:className "grid-row"}
-                (d/div {:className "grid-cell"})
-                (d/div {:className "grid-cell"})
-                (d/div {:className "grid-cell"})
-                (d/div {:className "grid-cell"}))
-         (d/div {:className "grid-row"}
-                (d/div {:className "grid-cell"})
-                (d/div {:className "grid-cell"})
-                (d/div {:className "grid-cell"})
-                (d/div {:className "grid-cell"}))
-         (d/div {:className "grid-row"}
-                (d/div {:className "grid-cell"})
-                (d/div {:className "grid-cell"})
-                (d/div {:className "grid-cell"})
-                (d/div {:className "grid-cell"}))))
+(q/defcomponent Grid []
+  "Draws the Grid, nothing here really needs to be dynamic"
+  (apply d/div {:className "grid-container"}
+         (for [i (range board-size)]
+           (apply d/div {:className "grid-row"}
+                  (for [i (range board-size)]
+                    (d/div {:className "grid-cell"}))))))
 
 (q/defcomponent Square
-  [value]
-  (d/div {:className "tile-container"} 
-         (d/div {:className "tile"} 
+  [idx value]
+  (d/div {:className "tile-container"}
+         (d/div {:className (str "tile " 
+                                 "tile-position-" 
+                                 (:row (index->css-position idx)) "-"
+                                 (:col (index->css-position idx)))}
                 (d/div {:className "tile-inner"} value))))
 
 (q/defcomponent Game
   [data]
   (println (str "Latest state of game: " (:board data)))
   (d/div {:className "game-container"}
-         (Grid nil)
+         (Grid)
          (apply d/div {:className :grid-row}
-                (map (fn [bval]
-                       (Square (if (= nil bval)
-                                 ""
-                                 bval)))
-                     (:board data)))))
+                (map-indexed (fn [idx val]
+                               (if (not= nil val)
+                                 (Square idx val)))
+                             (:board data)))))
 
 
 (defn render [data]
