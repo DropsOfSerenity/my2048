@@ -36,28 +36,26 @@ empty space"
 (defonce app-state (atom {:board (add-random-tile (add-random-tile initial-board))}))
 
 (defn reset-app-state! []
-  (reset! app-state {:board (add-random-tile (add-random-tile initial-board))}))
+  (reset! app-state 
+          {:board (add-random-tile (add-random-tile initial-board))}))
 
 ;; Rendering Logic
-(defn index->css-position
-  [idx]
-  "Convert an index to a coord, example:
-Given a 4x4 board.
-Given an index of 3
-We should return [1 4]"
-  (let [idx (inc idx)
-        row (quot idx board-size)
-        col (+ 1 (mod idx board-size))]
+(defn index->css-position [idx]
+  "Convert an index to a row and column (1 indexed)"
+  (let [col (+ 1 (mod idx board-size))
+        row (+ 1 (quot idx board-size))]
     {:row row :col col}))
 
-(defn tile-position-class-name
-  [idx]
+(defn tile-position-class-name [idx value]
+  "Return the class name for a tile, needed to set it's
+position and it's value color"
   (let [{:keys [row col]} (index->css-position idx)]
-    (str "tile "
-         "tile-position-" row "-" col)))
+    (str "tile tile-" value
+         " tile-position-" col "-" row)))
 
 ;; == Dom Components ==
 (q/defcomponent RestartButton []
+  "Resets the game state"
   (d/a {:className "restart-button"
         :onClick (fn [] (reset-app-state!))}
        "New Game"))
@@ -71,12 +69,14 @@ We should return [1 4]"
                     (d/div {:className "grid-cell"}))))))
 
 (q/defcomponent Square [idx value]
+  "Represents a tile on the board"
   (d/div {:className "tile-container"}
-         (d/div {:className (tile-position-class-name idx)}
+         (d/div {:className (tile-position-class-name idx value)}
                 (d/div {:className "tile-inner"} value))))
 
 (q/defcomponent Game [data]
-  (println (str "Latest state of game: " (:board data)))
+  "Represents the entire game"
+  (println (str "Game Re-rendered: " (:board data)))
   (d/div {:className "game-container"}
          (Grid)
          (apply d/div {:className :grid-row}
@@ -96,10 +96,7 @@ so that it can be called by callbacks elsewhere"
 
 ;; Re-render our game on app-state change
 (add-watch app-state ::render
-           (do
-             (print "App State Changed")
-             (println @app-state)
-             (fn [_ _ _ data] (render data))))
+           (fn [_ _ _ data] (render data)))
 
 
 (defonce *yolo* (render @app-state))
