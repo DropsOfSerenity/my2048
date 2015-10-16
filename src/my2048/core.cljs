@@ -36,20 +36,47 @@ empty space"
 (defonce app-state (atom {:board (add-random-tile initial-board)}))
 
 ;; == Dom Components ==
+(q/defcomponent Grid
+  []
+  (d/div {:className "grid-container"}
+         (d/div {:className "grid-row"}
+                (d/div {:className "grid-cell"})
+                (d/div {:className "grid-cell"})
+                (d/div {:className "grid-cell"})
+                (d/div {:className "grid-cell"}))
+         (d/div {:className "grid-row"}
+                (d/div {:className "grid-cell"})
+                (d/div {:className "grid-cell"})
+                (d/div {:className "grid-cell"})
+                (d/div {:className "grid-cell"}))
+         (d/div {:className "grid-row"}
+                (d/div {:className "grid-cell"})
+                (d/div {:className "grid-cell"})
+                (d/div {:className "grid-cell"})
+                (d/div {:className "grid-cell"}))
+         (d/div {:className "grid-row"}
+                (d/div {:className "grid-cell"})
+                (d/div {:className "grid-cell"})
+                (d/div {:className "grid-cell"})
+                (d/div {:className "grid-cell"}))))
+
 (q/defcomponent Square
   [value]
-  (d/div {:id (str "square-" value)}
-         value))
+  (d/div {:className "tile-container"} 
+         (d/div {:className "tile"} 
+                (d/div {:className "tile-inner"} value))))
 
 (q/defcomponent Game
   [data]
   (println (str "Latest state of game: " (:board data)))
-  (apply d/div {}
-         (map (fn [bval]
-                (Square (if (= nil bval)
-                          "*"
-                          bval)))
-              (:board data))))
+  (d/div {:className "game-container"}
+         (Grid nil)
+         (apply d/div {:className :grid-row}
+                (map (fn [bval]
+                       (Square (if (= nil bval)
+                                 ""
+                                 bval)))
+                     (:board data)))))
 
 
 (defn render [data]
