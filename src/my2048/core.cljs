@@ -1,5 +1,5 @@
 (ns ^:figwheel-always my2048.core
-  (:require [cljs.core.async :refer [put! chan <!]]
+  (:require [cljs.core.async :refer [put! chan <! timeout dropping-buffer]]
             [figwheel.client :as fw]
             [goog.events :as events]
             [quiescent.core :as q]
@@ -51,11 +51,6 @@ position and it's value color"
          " tile-position-" col "-" row)))
 
 ;; == Dom Components ==
-(q/defcomponent RestartButton []
-  "Resets the game state"
-  (d/a {:className "restart-button"}
-       "New Game"))
-
 (q/defcomponent Grid []
   "Draws the Grid, nothing here really needs to be dynamic"
   (apply d/div {:className "grid-container"}
@@ -64,12 +59,6 @@ position and it's value color"
                   (for [i (range board-size)]
                     (d/div {:className "grid-cell"}))))))
 
-(q/defcomponent Square [idx value]
-  "Represents a tile on the board"
-  (d/div {:className "tile-container"}
-         (d/div {:className (tile-position-class-name idx value)}
-                (d/div {:className "tile-inner"} value))))
-
 (q/defcomponent Game [{:keys [board]}]
   "Represents the entire game"
   (println (str "Game Re-rendered: " board))
@@ -77,8 +66,10 @@ position and it's value color"
          (Grid)
          (apply d/div {:className :grid-row}
                 (map-indexed (fn [idx val]
-                               (if (not= nil val)
-                                 (Square idx val)))
+                               (if val
+                                 (d/div {:className "tile-container"}
+                                        (d/div {:className (tile-position-class-name idx val)}
+                                               (d/div {:className "tile-inner"} val)))))
                              board))))
 
 ;; GAME LOGIC
@@ -95,31 +86,44 @@ position and it's value color"
      result)))
 
 (defn- pad-with-nils [n coll]
-  (conj coll (repeat (- board-size (count coll)) nil)))
+  (concat coll (repeat (- board-size (count coll)) nil)))
 
 (defn combine-adjacent [coll]
   "Given a vector, combined any adjacent similar numbers"
-  (pad-with-nils 4 (combine coll)))
+  (combine coll))
 
 (defn left-slide [row]
   "Given a row, see if we can slide left and return the
 new row if we can"
   (->> row
        (remove nil?)
-       combine-adjacent))
+       combine-adjacent
+       (pad-with-nils board-size)))
 (defn right-slide [row]
+  "Given a row, slide to right. A right slide is just
+the same as reversing a row, doing a left slide, then
+reversing the result"
   (reverse (left-slide (reverse row))))
-(defn up-slide [col])
-(defn down-slide [col])
+
+(defn up-slide [col]
+  "For an upward slide"
+  (->> col
+       (remove nil?)
+       combine-adjacent
+       (pad-with-nils board-size)))
+
+(defn down-slide [col]
+  (reverse (up-slide (reverse col))))
 
 (defn slide [board dir]
   "Returns the result of a slide in a direction."
-  (let [rows (partition board-size board)]
+  (let [rows (partition board-size board)
+        cols (apply map list rows)]
     (case dir
       :left (into [] (flatten (map left-slide rows)))
       :right (into [] (flatten (map right-slide rows)))
-      :up ()
-      :down ())))
+      :up (into [] (flatten (apply map list (map up-slide cols))))
+      :down (into [] (flatten (apply map list (map down-slide cols)))))))
 
 (defn handle-move [board dir]
   (if (= board (slide board dir))
@@ -144,7 +148,7 @@ new row if we can"
    83 :down
    68 :right})
 
-(def key-chan (chan))
+(def key-chan (chan (dropping-buffer 1)))
 
 (defn key-listener [ch]
   "When a key has been pressed, push it to the channel"
@@ -161,28 +165,34 @@ new row if we can"
                   (.preventDefault %)))
 
 ;; RENDERING
-
 (defn render [board]
   "Renders the latest state of the game, we wrap this in a function
 so that it can be called by callbacks elsewhere"
   (q/render (Game {:board board})
-            (.getElementById js/document "main-area"))
-  (q/render (RestartButton)
-            (.getElementById js/document "restart-button")))
+            (.getElementById js/document "main-area")))
 
 
 (defn on-js-reload []
-  ;; optionally touch your app-state to force rerendering depending on
-  ;; your application
-)
+  )
 
 ;; GAME LOOP
 ;; Due to quescient we maintain global state here and only here.
-(go
-  (loop [board (add-random-tile (add-random-tile initial-board))]
 
-   (render board)
 
-   (if-let [board' (handle-move board (<! key-chan))]
-     (recur board')
-     (recur board))))
+(defonce run-once
+  (let [keys key-chan]
+    (go-loop [board (add-random-tile (add-random-tile initial-board))
+              action :render]
+      (case action
+        :slide (do (render board)
+                   (<! (timeout 100))
+                   (recur board :add))
+        :add (do (render board)
+                 (<! (timeout 200))
+                 (recur (add-random-tile board) :render))
+        :render (do (render board)
+                    (<! (timeout 100))
+                    (recur board :wait))
+        :wait (if-let [board' (handle-move board (<! keys))]
+                (recur board' :slide)
+                (recur board :wait))))))
