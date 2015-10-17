@@ -4,7 +4,7 @@
             [goog.events :as events]
             [quiescent.core :as q]
             [quiescent.dom :as d])
-  (:require-macros [cljs.core.async.macros :refer [go-loop]]))
+  (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
 
 (enable-console-print!)
 
@@ -36,12 +36,6 @@ nil tile"
 empty space"
   (assoc board (random-nil-index board) (rand-nth [2 2 4])))
 
-(defonce app-state (atom {:board (add-random-tile (add-random-tile initial-board))}))
-
-(defn reset-app-state! []
-  (reset! app-state
-          {:board (add-random-tile (add-random-tile initial-board))}))
-
 ;; Rendering Logic
 (defn index->css-position [idx]
   "Convert an index to a row and column (1 indexed)"
@@ -59,8 +53,7 @@ position and it's value color"
 ;; == Dom Components ==
 (q/defcomponent RestartButton []
   "Resets the game state"
-  (d/a {:className "restart-button"
-        :onClick reset-app-state!}
+  (d/a {:className "restart-button"}
        "New Game"))
 
 (q/defcomponent Grid []
@@ -77,35 +70,79 @@ position and it's value color"
          (d/div {:className (tile-position-class-name idx value)}
                 (d/div {:className "tile-inner"} value))))
 
-(q/defcomponent Game [data]
+(q/defcomponent Game [{:keys [board]}]
   "Represents the entire game"
-  (println (str "Game Re-rendered: " (:board data)))
+  (println (str "Game Re-rendered: " board))
   (d/div {:className "game-container"}
          (Grid)
          (apply d/div {:className :grid-row}
                 (map-indexed (fn [idx val]
                                (if (not= nil val)
                                  (Square idx val)))
-                             (:board data)))))
+                             board))))
+
+;; GAME LOGIC
+
+
+(defn- combine
+  ([r]
+   (combine r []))
+  ([r result]
+   (if (seq r)
+     (if (= (first r) (second r))
+       (recur (rest (rest r)) (conj result (+ (first r) (second r))))
+       (recur (rest r) (conj result (first r))))
+     result)))
+
+(defn- pad-with-nils [n coll]
+  (conj coll (repeat (- board-size (count coll)) nil)))
+
+(defn combine-adjacent [coll]
+  "Given a vector, combined any adjacent similar numbers"
+  (pad-with-nils 4 (combine coll)))
+
+(defn left-slide [row]
+  "Given a row, see if we can slide left and return the
+new row if we can"
+  (->> row
+       (remove nil?)
+       combine-adjacent))
+(defn right-slide [row]
+  (reverse (left-slide (reverse row))))
+(defn up-slide [col])
+(defn down-slide [col])
+
+(defn slide [board dir]
+  "Returns the result of a slide in a direction."
+  (let [rows (partition board-size board)]
+    (case dir
+      :left (into [] (flatten (map left-slide rows)))
+      :right (into [] (flatten (map right-slide rows)))
+      :up ()
+      :down ())))
+
+(defn handle-move [board dir]
+  (if (= board (slide board dir))
+    nil
+    (slide board dir)))
 
 ;; KEY INPUT
-
 ;; Using core.async we set up a channel for pushing key events onto
 
 (def keyword->event-type
   "Maps a sensible keyword to an event type"
-  {:keyup goog.events.EventType.KEYUP})
+  {:keyup goog.events.EventType.KEYUP
+   :keydown goog.events.EventType.KEYDOWN})
 
 (def keycode->symbol
-  {37 :left  ; left arrow
-   38 :up    ; up arrow
-   40 :down  ; down arrow
-   39 :right ; right arrow
-   87 :up    ; w
-   65 :left  ; a
-   83 :down ; s
-   68 :right  ; d
-   })
+  {37 :left
+   38 :up
+   40 :down
+   39 :right
+   87 :up
+   65 :left
+   83 :down
+   68 :right})
 
 (def key-chan (chan))
 
@@ -118,31 +155,34 @@ position and it's value color"
                     (put! ch k))))
 
 (key-listener key-chan)
+(events/listen js/window
+               (keyword->event-type :keydown)
+               #(when (keycode->symbol (.-keyCode %))
+                  (.preventDefault %)))
 
 ;; RENDERING
 
-(defn render [data]
+(defn render [board]
   "Renders the latest state of the game, we wrap this in a function
 so that it can be called by callbacks elsewhere"
-  (q/render (Game data)
+  (q/render (Game {:board board})
             (.getElementById js/document "main-area"))
   (q/render (RestartButton)
             (.getElementById js/document "restart-button")))
 
 
-;; Re-render our game on app-state change
-(add-watch app-state ::render
-           (fn [_ _ _ data] (render data)))
-
-
-(defonce *yolo* (render @app-state))
 (defn on-js-reload []
   ;; optionally touch your app-state to force rerendering depending on
   ;; your application
-  (swap! app-state update-in [:__figwheel_counter] not))
+)
 
 ;; GAME LOOP
-(go-loop []
-  (println (<! key-chan))
-  (recur)
-  )
+;; Due to quescient we maintain global state here and only here.
+(go
+  (loop [board (add-random-tile (add-random-tile initial-board))]
+
+   (render board)
+
+   (if-let [board' (handle-move board (<! key-chan))]
+     (recur board')
+     (recur board))))
