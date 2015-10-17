@@ -1,8 +1,10 @@
 (ns ^:figwheel-always my2048.core
   (:require [cljs.core.async :refer [put! chan <!]]
             [figwheel.client :as fw]
+            [goog.events :as events]
             [quiescent.core :as q]
-            [quiescent.dom :as d]))
+            [quiescent.dom :as d])
+  (:require-macros [cljs.core.async.macros :refer [go-loop]]))
 
 (enable-console-print!)
 
@@ -37,7 +39,7 @@ empty space"
 (defonce app-state (atom {:board (add-random-tile (add-random-tile initial-board))}))
 
 (defn reset-app-state! []
-  (reset! app-state 
+  (reset! app-state
           {:board (add-random-tile (add-random-tile initial-board))}))
 
 ;; Rendering Logic
@@ -86,6 +88,38 @@ position and it's value color"
                                  (Square idx val)))
                              (:board data)))))
 
+;; KEY INPUT
+
+;; Using core.async we set up a channel for pushing key events onto
+
+(def keyword->event-type
+  "Maps a sensible keyword to an event type"
+  {:keyup goog.events.EventType.KEYUP})
+
+(def keycode->symbol
+  {37 :left  ; left arrow
+   38 :up    ; up arrow
+   40 :down  ; down arrow
+   39 :right ; right arrow
+   87 :up    ; w
+   65 :left  ; a
+   83 :down ; s
+   68 :right  ; d
+   })
+
+(def key-chan (chan))
+
+(defn key-listener [ch]
+  "When a key has been pressed, push it to the channel"
+  (events/listen js/window
+                 (keyword->event-type :keyup)
+                 #(when-let [k (keycode->symbol (.-keyCode %))]
+                    (.preventDefault %)
+                    (put! ch k))))
+
+(key-listener key-chan)
+
+;; RENDERING
 
 (defn render [data]
   "Renders the latest state of the game, we wrap this in a function
@@ -94,6 +128,7 @@ so that it can be called by callbacks elsewhere"
             (.getElementById js/document "main-area"))
   (q/render (RestartButton)
             (.getElementById js/document "restart-button")))
+
 
 ;; Re-render our game on app-state change
 (add-watch app-state ::render
@@ -105,3 +140,9 @@ so that it can be called by callbacks elsewhere"
   ;; optionally touch your app-state to force rerendering depending on
   ;; your application
   (swap! app-state update-in [:__figwheel_counter] not))
+
+;; GAME LOOP
+(go-loop []
+  (println (<! key-chan))
+  (recur)
+  )
