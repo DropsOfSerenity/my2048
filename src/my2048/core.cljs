@@ -1,5 +1,6 @@
 (ns ^:figwheel-always my2048.core
-  (:require [figwheel.client :as fw]
+  (:require [cljs.core.async :refer [put! chan <!]]
+            [figwheel.client :as fw]
             [quiescent.core :as q]
             [quiescent.dom :as d]))
 
@@ -57,7 +58,7 @@ position and it's value color"
 (q/defcomponent RestartButton []
   "Resets the game state"
   (d/a {:className "restart-button"
-        :onClick (fn [] (reset-app-state!))}
+        :onClick reset-app-state!}
        "New Game"))
 
 (q/defcomponent Grid []
