@@ -1,5 +1,6 @@
 (ns ^:figwheel-always my2048.core
   (:require [cljs.core.async :refer [put! chan <! timeout dropping-buffer]]
+            [clojure.string :as string]
             [figwheel.client :as fw]
             [goog.events :as events]
             [quiescent.core :as q]
@@ -50,14 +51,18 @@ empty space"
         row (+ 1 (quot idx board-size))]
     {:row row :col col}))
 
-(defn tile-position-class-name [idx value new]
+(defn tile-position-class-name [idx tile]
   "Return the class name for a tile, needed to set it's
 position and it's value color"
   (let [{:keys [row col]} (index->css-position idx)
-        new-class (if new "tile-new" "")]
-    (str "tile tile-" value
-         " tile-position-" col "-" row " "
-         new-class)))
+        {:keys [new old val]} tile
+        new-class (if new "tile-new" "")
+        merged-class (if old "tile-merged" "")]
+    (string/join " " ["tile"
+                      (str "tile-" val)
+                      (str "tile-position-" col "-" row)
+                      new-class
+                      merged-class])))
 
 (defn tile-inner-class-name [new]
   (if new "tile-inner tile-new" "tile-inner"))
@@ -77,14 +82,13 @@ position and it's value color"
   (d/div
    {:className "game-container"}
    (Grid)
-   (apply d/div
-          {:className :grid-row}
+   (apply d/div {:className :grid-row}
           (map-indexed
            (fn [idx tile]
              (if tile
                (d/div {:key (str (:key tile))
                        :className "tile-container"}
-                      (d/div {:className (tile-position-class-name idx (:val tile) (:new tile))
+                      (d/div {:className (tile-position-class-name idx tile)
                               :key (str (:key tile))}
                              (d/div {:className "tile-inner"} (str (:val tile)))))))
            board))))
