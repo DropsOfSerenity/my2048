@@ -51,22 +51,6 @@ empty space"
         row (+ 1 (quot idx board-size))]
     {:row row :col col}))
 
-(defn tile-position-class-name [idx tile]
-  "Return the class name for a tile, needed to set it's
-position and it's value color"
-  (let [{:keys [row col]} (index->css-position idx)
-        {:keys [new old val]} tile
-        new-class (if new "tile-new" "")
-        merged-class (if old "tile-merged" "")]
-    (string/join " " ["tile"
-                      (str "tile-" val)
-                      (str "tile-position-" col "-" row)
-                      new-class
-                      merged-class])))
-
-(defn tile-inner-class-name [new]
-  (if new "tile-inner tile-new" "tile-inner"))
-
 ;; == Dom Components ==
 (q/defcomponent Grid []
   "Draws the Grid, nothing here really needs to be dynamic"
@@ -76,22 +60,43 @@ position and it's value color"
                   (for [i (range board-size)]
                     (d/div {:className "grid-cell"}))))))
 
+(defn board->tiles-to-render [board]
+  (->> board
+       (keep-indexed (fn [idx tile]
+                       (when tile
+                         (assoc tile :pos (index->css-position idx)))))
+
+       (reduce (fn [acc tile]
+                 (if (:old tile)
+                   (do (println "Tile: " tile)
+                       (concat acc (conj (map #(assoc % :pos (:pos tile)) (:old tile)) tile)))
+                   (conj acc tile)))
+               [])
+
+       (map (fn [tile]
+              (assoc tile :classes (cond (:new tile) "tile-new"
+                                         (:old tile) "tile-merged"))))
+       (sort-by :key)))
+
 (q/defcomponent Game [{:keys [board]}]
   "Represents the entire game"
   (println (str "Game Re-rendered: " board))
   (d/div
    {:className "game-container"}
    (Grid)
-   (apply d/div {:className :grid-row}
-          (map-indexed
-           (fn [idx tile]
-             (if tile
-               (d/div {:key (str (:key tile))
-                       :className "tile-container"}
-                      (d/div {:className (tile-position-class-name idx tile)
-                              :key (str (:key tile))}
-                             (d/div {:className "tile-inner"} (str (:val tile)))))))
-           board))))
+   (d/div {:className :grid-row}
+          (apply d/div {:className :tile-container}
+                 (map
+                  (fn [tile]
+                    (d/div {:className (string/join
+                                        " "
+                                        ["tile"
+                                         (str "tile-" (:val tile))
+                                         (str "tile-position-" (:col (:pos tile)) "-" (:row (:pos tile)))
+                                         (:classes tile)])
+                            :key (:key tile)}
+                           (d/div {:className :tile-inner} (:val tile))))
+                  (board->tiles-to-render board))))))
 
 (defn combine-tiles [first second]
   {:val (+ (:val first) (:val second))
