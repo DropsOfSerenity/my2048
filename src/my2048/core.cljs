@@ -68,8 +68,7 @@ empty space"
 
        (reduce (fn [acc tile]
                  (if (:old tile)
-                   (do (println "Tile: " tile)
-                       (concat acc (conj (map #(assoc % :pos (:pos tile)) (:old tile)) tile)))
+                   (concat acc (conj (map #(assoc % :pos (:pos tile)) (:old tile)) tile))
                    (conj acc tile)))
                [])
 
@@ -80,7 +79,6 @@ empty space"
 
 (q/defcomponent Game [{:keys [board]}]
   "Represents the entire game"
-  (println (str "Game Re-rendered: " board))
   (d/div
    {:className "game-container"}
    (Grid)
