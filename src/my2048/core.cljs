@@ -33,7 +33,8 @@ nil tile"
 
 (defn build-tile [val]
   {:val val
-   :key (gensym "tile")})
+   :key (gensym "tile")
+   :new true})
 
 (defn add-random-tile [board]
   "Returns a new board with a tile randomely added to a previously
@@ -49,12 +50,16 @@ empty space"
         row (+ 1 (quot idx board-size))]
     {:row row :col col}))
 
-(defn tile-position-class-name [idx value]
+(defn tile-position-class-name [idx value new]
   "Return the class name for a tile, needed to set it's
 position and it's value color"
   (let [{:keys [row col]} (index->css-position idx)]
     (str "tile tile-" value
-         " tile-position-" col "-" row)))
+         " tile-position-" col "-" row " "
+         (when new) "tile-new" "")))
+
+(defn tile-inner-class-name [new]
+  (if new "tile-inner tile-new" "tile-inner"))
 
 ;; == Dom Components ==
 (q/defcomponent Grid []
@@ -76,7 +81,7 @@ position and it's value color"
                                  (d/div {:key (str (:key tile))
                                          :className "tile-container"}
 
-                                        (d/div {:className (tile-position-class-name idx (:val tile))
+                                        (d/div {:className (tile-position-class-name idx (:val tile) (:new tile))
                                                 :key (str (:key tile))}
                                                (d/div {:className "tile-inner"} (str (:val tile)))))))
                              board))))
@@ -200,7 +205,7 @@ so that it can be called by callbacks elsewhere"
                  (recur (add-random-tile board) :render))
         :render (do (render board)
                     (<! (timeout 100))
-                    (recur board :wait))
+                    (recur (map #(dissoc % :new) board) :wait))
         :wait (if-let [board' (handle-move board (<! keys))]
                 (recur board' :slide)
                 (recur board :wait))))))
