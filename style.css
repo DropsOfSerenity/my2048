@@ -468,7 +468,7 @@ hr {
     -moz-transform: scale(1);
     transform: scale(1); } }
 .tile-merged {
-  z-index: 20;
+    z-index: 20;
 }
 .tile-merged .tile-inner {
   z-index: 20;
