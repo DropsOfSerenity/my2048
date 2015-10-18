@@ -31,10 +31,16 @@ a random empty tile in the game. Returns the index of a random
 nil tile"
   (first (shuffle (get-nil-indexes coll))))
 
+(defn build-tile [val]
+  {:val val
+   :key (gensym "tile")})
+
 (defn add-random-tile [board]
   "Returns a new board with a tile randomely added to a previously
 empty space"
-  (assoc board (random-nil-index board) (rand-nth [2 2 4])))
+  (assoc board (random-nil-index board) (rand-nth [(build-tile 2)
+                                                   (build-tile 2)
+                                                   (build-tile 4)])))
 
 ;; Rendering Logic
 (defn index->css-position [idx]
@@ -65,23 +71,25 @@ position and it's value color"
   (d/div {:className "game-container"}
          (Grid)
          (apply d/div {:className :grid-row}
-                (map-indexed (fn [idx val]
-                               (if val
-                                 (d/div {:className "tile-container"}
-                                        (d/div {:className (tile-position-class-name idx val)}
-                                               (d/div {:className "tile-inner"} val)))))
+                (map-indexed (fn [idx tile]
+                               (if tile
+                                 (d/div {:key (str (:key tile))
+                                         :className "tile-container"}
+
+                                        (d/div {:className (tile-position-class-name idx (:val tile))
+                                                :key (str (:key tile))}
+                                               (d/div {:className "tile-inner"} (str (:val tile)))))))
                              board))))
 
 ;; GAME LOGIC
-
-
 (defn- combine
   ([r]
    (combine r []))
   ([r result]
    (if (seq r)
-     (if (= (first r) (second r))
-       (recur (rest (rest r)) (conj result (+ (first r) (second r))))
+     (if (= (:val (first r)) (:val (second r)))
+       (recur (rest (rest r)) (conj result (build-tile
+                                            (+ (:val (first r)) (:val (second r))))))
        (recur (rest r) (conj result (first r))))
      result)))
 
