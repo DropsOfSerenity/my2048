@@ -89,6 +89,11 @@ position and it's value color"
                              (d/div {:className "tile-inner"} (str (:val tile)))))))
            board))))
 
+(defn combine-tiles [first second]
+  {:val (+ (:val first) (:val second))
+   :old [first second]
+   :key (gensym "tile")})
+
 ;; GAME LOGIC
 (defn- combine
   ([r]
@@ -96,8 +101,7 @@ position and it's value color"
   ([r result]
    (if (seq r)
      (if (= (:val (first r)) (:val (second r)))
-       (recur (rest (rest r)) (conj result (build-tile
-                                            (+ (:val (first r)) (:val (second r))))))
+       (recur (rest (rest r)) (conj result (combine-tiles (first r) (second r))))
        (recur (rest r) (conj result (first r))))
      result)))
 
@@ -204,11 +208,10 @@ so that it can be called by callbacks elsewhere"
                    (<! (timeout 100))
                    (recur board :add))
         :add (do (render board)
-                 (<! (timeout 200))
+                 (<! (timeout 100))
                  (recur (add-random-tile board) :render))
         :render (do (render board)
-                    (<! (timeout 100))
-                    (recur (map #(dissoc % :new) board) :wait))
+                    (recur (map #(dissoc % :new :old) board) :wait))
         :wait (if-let [board' (handle-move board (<! keys))]
                 (recur board' :slide)
                 (recur board :wait))))))
