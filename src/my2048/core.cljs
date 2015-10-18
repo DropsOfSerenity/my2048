@@ -37,12 +37,16 @@ nil tile"
    :key (gensym "tile")
    :new true})
 
+(defn combine-tiles [first second]
+  {:val (+ (:val first) (:val second))
+   :old [first second]
+   :key (gensym "tile")})
+
 (defn add-random-tile [board]
   "Returns a new board with a tile randomely added to a previously
 empty space"
-  (assoc board (random-nil-index board) (rand-nth [(build-tile 2)
-                                                   (build-tile 2)
-                                                   (build-tile 4)])))
+  (assoc board (random-nil-index board)
+         (rand-nth [(build-tile 2) (build-tile 2) (build-tile 4)])))
 
 ;; Rendering Logic
 (defn index->css-position [idx]
@@ -50,6 +54,23 @@ empty space"
   (let [col (+ 1 (mod idx board-size))
         row (+ 1 (quot idx board-size))]
     {:row row :col col}))
+
+(defn board->tiles-to-render [board]
+  "Create a mapping from the actual state of the board, to
+a structure that represents what we should actually render"
+  (->> board
+       (keep-indexed (fn [idx tile]
+                       (when tile
+                         (assoc tile :pos (index->css-position idx)))))
+       (reduce (fn [acc tile]
+                 (if (:old tile)
+                   (concat acc (conj (map #(assoc % :pos (:pos tile)) (:old tile)) tile))
+                   (conj acc tile)))
+               [])
+       (map (fn [tile]
+              (assoc tile :classes (cond (:new tile) "tile-new"
+                                         (:old tile) "tile-merged"))))
+       (sort-by :key)))
 
 ;; == Dom Components ==
 (q/defcomponent Grid []
@@ -60,22 +81,6 @@ empty space"
                   (for [i (range board-size)]
                     (d/div {:className "grid-cell"}))))))
 
-(defn board->tiles-to-render [board]
-  (->> board
-       (keep-indexed (fn [idx tile]
-                       (when tile
-                         (assoc tile :pos (index->css-position idx)))))
-
-       (reduce (fn [acc tile]
-                 (if (:old tile)
-                   (concat acc (conj (map #(assoc % :pos (:pos tile)) (:old tile)) tile))
-                   (conj acc tile)))
-               [])
-
-       (map (fn [tile]
-              (assoc tile :classes (cond (:new tile) "tile-new"
-                                         (:old tile) "tile-merged"))))
-       (sort-by :key)))
 
 (q/defcomponent Game [{:keys [board]}]
   "Represents the entire game"
@@ -95,11 +100,6 @@ empty space"
                             :key (:key tile)}
                            (d/div {:className :tile-inner} (:val tile))))
                   (board->tiles-to-render board))))))
-
-(defn combine-tiles [first second]
-  {:val (+ (:val first) (:val second))
-   :old [first second]
-   :key (gensym "tile")})
 
 ;; GAME LOGIC
 (defn- combine
@@ -204,8 +204,6 @@ so that it can be called by callbacks elsewhere"
 
 ;; GAME LOOP
 ;; Due to quescient we maintain global state here and only here.
-
-
 (defonce run-once
   (let [keys key-chan]
     (go-loop [board (add-random-tile (add-random-tile initial-board))
