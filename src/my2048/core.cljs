@@ -53,10 +53,11 @@ empty space"
 (defn tile-position-class-name [idx value new]
   "Return the class name for a tile, needed to set it's
 position and it's value color"
-  (let [{:keys [row col]} (index->css-position idx)]
+  (let [{:keys [row col]} (index->css-position idx)
+        new-class (if new "tile-new" "")]
     (str "tile tile-" value
          " tile-position-" col "-" row " "
-         (when new) "tile-new" "")))
+         new-class)))
 
 (defn tile-inner-class-name [new]
   (if new "tile-inner tile-new" "tile-inner"))
@@ -73,18 +74,20 @@ position and it's value color"
 (q/defcomponent Game [{:keys [board]}]
   "Represents the entire game"
   (println (str "Game Re-rendered: " board))
-  (d/div {:className "game-container"}
-         (Grid)
-         (apply d/div {:className :grid-row}
-                (map-indexed (fn [idx tile]
-                               (if tile
-                                 (d/div {:key (str (:key tile))
-                                         :className "tile-container"}
-
-                                        (d/div {:className (tile-position-class-name idx (:val tile) (:new tile))
-                                                :key (str (:key tile))}
-                                               (d/div {:className "tile-inner"} (str (:val tile)))))))
-                             board))))
+  (d/div
+   {:className "game-container"}
+   (Grid)
+   (apply d/div
+          {:className :grid-row}
+          (map-indexed
+           (fn [idx tile]
+             (if tile
+               (d/div {:key (str (:key tile))
+                       :className "tile-container"}
+                      (d/div {:className (tile-position-class-name idx (:val tile) (:new tile))
+                              :key (str (:key tile))}
+                             (d/div {:className "tile-inner"} (str (:val tile)))))))
+           board))))
 
 ;; GAME LOGIC
 (defn- combine
